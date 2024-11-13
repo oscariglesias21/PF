@@ -4,7 +4,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Chat with EverydAI</title>
     <style>
         /* Aseguramos que el espectro de frecuencias ocupe todo el ancho del área */
@@ -40,10 +39,11 @@
 
     <div class="chat-container">
         <h1>Chat with EverydAI</h1>
-        <div id="chat-box"></div>
+        <div id="avatar-container" ></div>
+        <div id="chat-box" class="hidden"></div>
         <input type="text" id="user-input" placeholder="Chat with us...">
         <button id="send-button">Send</button>
-
+        
         <!-- Contenedor para controles, incluyendo el espectro de frecuencia -->
         <div class="control-container">
             <button id="microphone-button">Start Conversation</button>
@@ -326,5 +326,100 @@
 
     <!-- Aquí agregamos el popup -->
     <div id="popup" class="popup hidden"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        // Crear la escena y la cámara
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(65, 500 / 500, 0.1, 1000);
+        camera.position.set(0, 3.1, 0.9); // Ajustamos la altura para estar a nivel de los ojos del avatar
+        
+        // Configurar el renderizador
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(600, 500);
+        document.getElementById("avatar-container").appendChild(renderer.domElement);
+    
+        // Añadir luces a la escena
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+        scene.add(ambientLight);
+    
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+    
+        // Obtener el parámetro 'domain' desde la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const domain = urlParams.get('domain');
+    
+        // Definir la ruta del modelo en función del dominio
+        let modelPath;
+        switch (domain) {
+            case 'culinary':
+                modelPath = '{{ url_for("static", filename="models/avatar1.glb") }}';
+                break;
+            case 'fashion':
+                modelPath = '{{ url_for("static", filename="models/avatar3.glb") }}';
+                break;
+            case 'gym':
+                modelPath = '{{ url_for("static", filename="models/avatar2.glb") }}';
+                break;
+            default:
+                console.error('Dominio no reconocido.');
+        }
+    
+        // Cargar el modelo 3D seleccionado
+        const loader = new THREE.GLTFLoader();
+        let model;
+    
+        if (modelPath) {
+            loader.load(modelPath, function(gltf) {
+                model = gltf.scene;
+                scene.add(model);
+    
+                // Asegurarse de que el avatar esté mirando hacia la cámara
+                model.rotation.y = 0;  // Asegura que el modelo esté mirando hacia la cámara desde el inicio
+                model.rotation.x = 0;
+    
+                // Centrar el modelo en la escena (en el centro del div)
+                model.position.set(0, 1.6, 0);  // Coloca el modelo en el origen (0, 0, 0)
+    
+                // Animar el modelo
+                function animate() {
+                    requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                }
+                animate();
+            });
+        }
+    
+        // Variables para el control del mouse
+        let isMouseDown = false;
+        let previousMousePosition = { x: 0, y: 0 };
+    
+        // Detectar cuando el mouse se presiona
+        document.addEventListener('mousedown', (event) => {
+            isMouseDown = true;
+            previousMousePosition.x = event.clientX;
+            previousMousePosition.y = event.clientY;
+        });
+    
+        // Detectar cuando el mouse se mueve mientras está presionado
+        document.addEventListener('mousemove', (event) => {
+            if (!isMouseDown || !model) return;
+    
+            const deltaX = event.clientX - previousMousePosition.x;
+            model.rotation.y += deltaX * 0.01;
+    
+            previousMousePosition.x = event.clientX;
+        });
+    
+        // Detectar cuando el mouse se libera
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+    </script>
+    
+
+    
 </body>
 </html>

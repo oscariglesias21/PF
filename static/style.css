@@ -18,7 +18,21 @@ body {
     border: 1px solid #333;  /* Borde oscuro */
     position: relative;
 }
+.hidden {
+    display: none;
+}
+#avatar-container {
+    display: flex;          /* Habilita Flexbox */
+    justify-content: center; /* Alinea horizontalmente al centro */
+    align-items: center;    /* Alinea verticalmente al centro */
+    position: relative;     /* Asegura que el contenedor se comporte de forma normal */
+}
 
+#avatar-container canvas {
+    border: 2px solid black;  /* Estilo del canvas */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+}
 /* Historial del chat */
 #chat-box {
     border: 1px solid #333;  /* Bordes oscuros */

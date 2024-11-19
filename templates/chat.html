@@ -173,30 +173,45 @@
             }
 
             // Función para enviar mensajes (tanto por texto como por voz)
-            function sendMessage(userInput) {
-                if (userInput.trim() !== "") {
-                    document.getElementById("chat-box").innerHTML += `<div>Usuario: ${userInput}</div>`;
-                    document.getElementById("user-input").value = ''; // Limpiar el input después de enviar
+           function sendMessage(userInput) {
+    if (userInput.trim() !== "") {
+        document.getElementById("chat-box").innerHTML += `<div>Usuario: ${userInput}</div>`;
+        document.getElementById("user-input").value = ''; // Limpiar el input después de enviar
 
-                    // Detener temporalmente el reconocimiento de voz mientras se obtiene la respuesta del bot
-                    if (recognition) recognition.stop();
-                    isBotSpeaking = true;
+        // Detener temporalmente el reconocimiento de voz mientras se obtiene la respuesta del bot
+        if (recognition) recognition.stop();
+        isBotSpeaking = true;
 
-                    fetch('/chat', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ message: userInput, model: selectedModel }),
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById("chat-box").innerHTML += `<div>AI: ${data.text_response}</div>`;
-                        speakResponse(data.text_response);
-                    })
-                    .catch(error => console.error('Error:', error));
-                }
+        fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: userInput, model: selectedModel }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("chat-box").innerHTML += `<div>AI: ${data.text_response}</div>`;
+            speakResponse(data.text_response);
+
+            // Mostrar las recomendaciones en el cuadro de recomendaciones
+            const recommendationsList = document.getElementById("recommendations-list");
+            recommendationsList.innerHTML = '';  // Limpiar la lista existente
+
+            // Verificar si data.recipes es un array antes de recorrerlo
+            if (Array.isArray(data.recipes)) {
+                data.recipes.forEach(receta => {
+                    const listItem = document.createElement("li");
+                    listItem.innerHTML = `<a href="${receta.link}" target="_blank">${receta.title}</a>`;
+                    recommendationsList.appendChild(listItem);
+                });
+            } else {
+                recommendationsList.innerHTML = '<li>No se encontraron recomendaciones.</li>';
             }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+}
 
             // Función para sintetizar y reproducir el audio de la respuesta
             function speakResponse(responseText) {

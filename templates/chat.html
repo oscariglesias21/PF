@@ -208,28 +208,46 @@
                     body: JSON.stringify({ text: responseText }),
                 })
                 .then(audioResponse => {
-                    if (audioResponse.ok) {
-                        return audioResponse.blob();
-                    }
+                    if (audioResponse.ok) return audioResponse.blob();
                     throw new Error('Error al obtener el audio.');
                 })
                 .then(audioBlob => {
                     const audioUrl = URL.createObjectURL(audioBlob);
                     const audio = new Audio(audioUrl);
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const analyser = audioContext.createAnalyser();
+                    const source = audioContext.createMediaElementSource(audio);
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
 
-                    // Evento cuando comienza la reproducción: el bot está hablando
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                    function emitAudioLevels() {
+                        analyser.getByteFrequencyData(dataArray);
+                        const avgAmplitude = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+
+                        const event = new CustomEvent('audio-level', { detail: { amplitude: avgAmplitude / 255 } });
+                        window.dispatchEvent(event);
+
+                        if (!audio.paused && !audio.ended) {
+                            requestAnimationFrame(emitAudioLevels);
+                        }
+                    }
+
                     audio.onplay = function() {
                         isBotSpeaking = true;
-                        if (recognition) recognition.stop(); // Detener el reconocimiento mientras el bot habla
+                        emitAudioLevels();
+                        if (recognition) recognition.stop(); 
                     };
 
-                    // Evento cuando termina la reproducción: el bot deja de hablar
                     audio.onended = function() {
                         isBotSpeaking = false;
-                        if (isListening) recognition.start(); // Reiniciar reconocimiento si el usuario aún está en modo escucha
+                        if (isListening) recognition.start();
+                        const event = new CustomEvent('audio-level', { detail: { amplitude: 0 } });
+                        window.dispatchEvent(event);
                     };
 
-                    audio.play(); // Reproducir el audio
+                    audio.play();
                 })
                 .catch(error => console.error('Error:', error));
             }
@@ -373,25 +391,48 @@
         let model;
     
         if (modelPath) {
-            loader.load(modelPath, function(gltf) {
-                model = gltf.scene;
-                scene.add(model);
-    
-                // Asegurarse de que el avatar esté mirando hacia la cámara
-                model.rotation.y = 0;  // Asegura que el modelo esté mirando hacia la cámara desde el inicio
-                model.rotation.x = 0;
-    
-                // Centrar el modelo en la escena (en el centro del div)
-                model.position.set(0, 1.6, 0);  // Coloca el modelo en el origen (0, 0, 0)
-    
-                // Animar el modelo
-                function animate() {
-                    requestAnimationFrame(animate);
-                    renderer.render(scene, camera);
+    loader.load(modelPath, function(gltf) {
+        model = gltf.scene;
+        scene.add(model);
+        model.traverse((child) => {
+            if (child.isMesh && child.name === 'Wolf3D_Head') {
+                jawOpenTarget = child.morphTargetDictionary['jawOpen'];
+
+                // Establecer el valor de jawOpen al 1 por defecto
+                if (jawOpenTarget !== undefined) {
+                    child.morphTargetInfluences[jawOpenTarget] = 0; // 1 representa la apertura total de la mandíbula
                 }
-                animate();
+            }
+        });
+        
+        // Asegurarse de que el avatar esté mirando hacia la cámara
+        model.rotation.y = 0;  // Asegura que el modelo esté mirando hacia la cámara desde el inicio
+        model.rotation.x = 0;
+    
+        // Centrar el modelo en la escena (en el centro del div)
+        model.position.set(0, 1.6, 0);  // Coloca el modelo en el origen (0, 0, 0)
+        
+        // Animar el modelo
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    });
+    
+    window.addEventListener('audio-level', (event) => {
+        const amplitude = event.detail.amplitude;
+
+        if (jawOpenTarget !== null && model) {
+            model.traverse((child) => {
+                if (child.isMesh && child.name === 'Wolf3D_Head') {
+                    child.morphTargetInfluences[jawOpenTarget] = amplitude;
+                }
             });
         }
+    });
+}
+
     
         // Variables para el control del mouse
         let isMouseDown = false;
@@ -419,8 +460,7 @@
             isMouseDown = false;
         });
     </script>
-    
-
+ 
     
 </body>
 </html>

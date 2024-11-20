@@ -6,7 +6,7 @@ from PIL import Image
 import serpapi
 from dotenv import load_dotenv
 import requests
-from google_auth_oauthlib.flow import Flow
+from openai import OpenAI
 from google.oauth2.credentials import Credentials
 from datetime import datetime, timedelta
 
@@ -36,6 +36,41 @@ model_img = genai.GenerativeModel(IMG_MODEL)
 # Configura la carpeta para almacenar las imágenes
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+##################################################33
+from typing_extensions import override
+from openai import AssistantEventHandler
+ 
+# First, we create a EventHandler class to define
+# how we want to handle the events in the response stream.
+
+class EventHandler(AssistantEventHandler):    
+  @override
+  def on_text_created(self, text) -> None:
+    print(f"\nassistant > ", end="", flush=True)
+      
+  @override
+  def on_text_delta(self, delta, snapshot):
+    print(delta.value, end="", flush=True)
+      
+  def on_tool_call_created(self, tool_call):
+    print(f"\nassistant > {tool_call.type}\n", flush=True)
+  
+  def on_tool_call_delta(self, delta, snapshot):
+    if delta.type == 'code_interpreter':
+      if delta.code_interpreter.input:
+        print(delta.code_interpreter.input, end="", flush=True)
+      if delta.code_interpreter.outputs:
+        print(f"\n\noutput >", flush=True)
+        for output in delta.code_interpreter.outputs:
+          if output.type == "logs":
+            print(f"\n{output.logs}", flush=True)
+ 
+# Then, we use the `stream` SDK helper 
+# with the `EventHandler` class to create the Run 
+# and stream the response.
+####################################################
+
+########################################################
 
 def sintetizar_voz(texto, api_key):
     # Directorio temporal para guardar el archivo de audio
@@ -55,7 +90,7 @@ def sintetizar_voz(texto, api_key):
     data = {
         "text": texto,
         "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
+        "voice_settings": {
             "stability": 0.5,
             "similarity_boost": 1
         }
@@ -71,53 +106,13 @@ def sintetizar_voz(texto, api_key):
     else:
         return None
 
-# Configuración de la API de Google OAuth
+
 CLIENT_SECRETS_FILE = "client_secret.json"
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 REDIRECT_URI = 'https://everydai.zapto.org/oauth2callback'
 
-# Flujo de autenticación OAuth
-flow = Flow.from_client_secrets_file(
-    CLIENT_SECRETS_FILE,
-    scopes=SCOPES,
-    redirect_uri=REDIRECT_URI
-)
+
 @app.route('/')
-def index():
-    # Si el usuario ya está autenticado, redirigirlo al dashboard
-    if 'credentials' in session:
-        return redirect(url_for('dashboard'))
-    
-    # De lo contrario, inicia el flujo de autenticación
-    authorization_url, state = flow.authorization_url(access_type='offline')
-    session['state'] = state
-    return redirect(authorization_url)
-
-@app.route('/oauth2callback')
-def oauth2callback():
-    # Recuperar el estado almacenado
-    state = session['state']
-    
-    # Completar el flujo OAuth y obtener las credenciales
-    flow.fetch_token(authorization_response=request.url)
-
-    # Guardar las credenciales en la sesión
-    credentials = flow.credentials
-    session['credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes,
-        'expires_at': credentials.expiry.strftime('%Y-%m-%d %H:%M:%S')
-        }
-
-    # Redirigir al dashboard después de la autenticación exitosa
-    return redirect(url_for('dashboard'))
-
-# Ruta para el dashboard donde se selecciona el dominio
-@app.route('/dashboard')
 def dashboard():
     # Renderiza la página del dashboard donde el usuario selecciona un dominio
     return render_template('dashboard.html')
@@ -141,42 +136,163 @@ def chat_post():
     user_input = request.json['message']
     selected_model = request.json['model']
 
-    # Selección del modelo basado en la entrada del usuario
-    if selected_model == 'culinary':
-        model = model_culinary
-        history = [
-            {"role": "user", "parts": "Eres un profesor de culinaria. Recibe una lista de ingredientes y proporciona una lista de pasos para realizar una receta solo con esos ingre>
-            {"role": "model", "parts": "Bien, dime los ingredientes que tienes y te daré el paso a paso, como si fueras principiantes, para preparar una receta."}
-        ]
-    elif selected_model == 'fashion':
-        model = model_fashion
-        history = [
-            {"role": "user", "parts": "Eres un asesor de moda. Recibes una lista de prendas de ropa y recomiendas combinaciones basadas en esas prendas."},
-            {"role": "model", "parts": "Entendido, por favor indícame las prendas y te sugeriré combinaciones."}
-        ]
-    elif selected_model == 'gym':
-        model = model_gym
-        history = [
-            {"role": "user", "parts": "Eres un entrenador personal. Recibe una lista de elementos de gimnasio y sugiere ejercicios que se pueden realizar con esos elementos. Además>
-            {"role": "model", "parts": "Dime qué elementos de gimnasio tienes, y te sugeriré ejercicios para realizar con ellos."}
-        ]
+    # # Selección del modelo basado en la entrada del usuario
+    # if selected_model == 'culinary':
+    #     model = model_culinary
+    #     history = [
+    #         {"role": "user", "parts": "Eres un profesor de culinaria. Recibe una lista de ingredientes y proporciona una lista de pasos para realizar una receta solo con esos ingredientes."},
+    #         {"role": "model", "parts": "Bien, dime los ingredientes que tienes y te daré el paso a paso, como si fueras principiantes, para preparar una receta."}
+    #     ]
+    # elif selected_model == 'fashion':
+    #     model = model_fashion
+    #     history = [
+    #         {"role": "user", "parts": "Eres un asesor de moda. Recibes una lista de prendas de ropa y recomiendas combinaciones basadas en esas prendas."},
+    #         {"role": "model", "parts": "Entendido, por favor indícame las prendas y te sugeriré combinaciones."}
+    #     ]
+    # elif selected_model == 'gym':
+    #     model = model_gym
+    #     history = [
+    #         {"role": "user", "parts": "Eres un entrenador personal. Recibe una lista de elementos de gimnasio y sugiere ejercicios que se pueden realizar con esos elementos. Además, si el usuario lo desea, sugiere ejercicios para trabajar grupos musculares específicos."},
+    #         {"role": "model", "parts": "Dime qué elementos de gimnasio tienes, y te sugeriré ejercicios para realizar con ellos."}
+    #     ]
+    # else:
+    #     return jsonify({'response': 'Modelo no encontrado.'}), 400
+    # # Iniciar chat con el modelo seleccionado
+    # chat = model.start_chat(history=history)
+    
+    # # Enviar mensaje al modelo y recibir respuesta
+    # response = chat.send_message(
+    #     user_input,
+    #     generation_config=genai.types.GenerationConfig(
+    #         candidate_count=1,
+    #         stop_sequences=["x"],
+    #         max_output_tokens=150,
+    #         temperature=0.7
+    #     )
+    # )
+
+
+    ####################################################
+    if selected_model == 'culinary':  
+        client = OpenAI()
+        assistant = client.beta.assistants.create(
+        name="Cooking",
+        instructions="el modelo debe actuar como un profesor de culinaria. Recibe una lista de ingredientes y debe proporcionarle al usuario una lista de pasos y guiar al usuario para que efectúe la receta. Solo puede sugerir recetas con los ingredientes que recibe en la lista, únicamente esos. A menos que el usuario te pida que le sugieras una receta y que él conseguirá los ingredientes. Tu dominio es solo la culinaria",
+        tools=[{"type": "code_interpreter"}],
+        model="gpt-4o-mini",
+        )
+        thread = client.beta.threads.create()
+
+
+        message = client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=user_input
+        )
+
+        run = client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+            instructions="el modelo debe actuar como un profesor de culinaria. Recibe una lista de ingredientes y debe proporcionarle al usuario una lista de pasos y guiar al usuario para que efectúe la receta. Solo puede sugerir recetas con los ingredientes que recibe en la lista, únicamente esos, a menos que el usuario te pida que le sugieras una receta y que él conseguirá los ingredientes. Tu dominio es solo la culinaria"
+        )
+
+        if run.status == 'completed': 
+            messages = client.beta.threads.messages.list(thread_id=thread.id)
+
+            # Filtrar los mensajes del asistente
+            mensajes_asistente = [msg for msg in messages.data if msg.role == 'assistant']
+            print(messages)
+            if mensajes_asistente:
+                # Obtener el último mensaje del asistente
+                ultimo_mensaje = mensajes_asistente[0]  # Accede al último mensaje del asistente
+                for block in ultimo_mensaje.content:
+                    print(f"Assistant: {block.text.value}") 
+                    response= block.text.value# Imprime solo el contenido del último mensaje
+            else:
+                print("No se encontró un mensaje del asistente.")
+
+        ####################################################
+    elif selected_model == 'fashion':  
+        client = OpenAI()
+        assistant = client.beta.assistants.create(
+        name="Fashion",
+        instructions="Eres un asesor de moda. Recibes una lista de prendas de ropa y recomiendas combinaciones basadas en esas prendas.Tu dominio es solo el gym. Tu dominio es solo la moda",
+        tools=[{"type": "code_interpreter"}],
+        model="gpt-4o-mini",
+        )
+        thread = client.beta.threads.create()
+
+
+        message = client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=user_input
+        )
+
+        run = client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+            instructions="Eres un asesor de moda. Recibes una lista de prendas de ropa y recomiendas combinaciones basadas en esas prendas. Tu dominio es solo la moda"
+        )
+
+        if run.status == 'completed': 
+            messages = client.beta.threads.messages.list(thread_id=thread.id)
+
+            # Filtrar los mensajes del asistente
+            mensajes_asistente = [msg for msg in messages.data if msg.role == 'assistant']
+            print(messages)
+            if mensajes_asistente:
+                # Obtener el último mensaje del asistente
+                ultimo_mensaje = mensajes_asistente[0]  # Accede al último mensaje del asistente
+                for block in ultimo_mensaje.content:
+                    print(f"Assistant: {block.text.value}") 
+                    response= block.text.value# Imprime solo el contenido del último mensaje
+            else:
+                print("No se encontró un mensaje del asistente.")
+
+        ####################################################
+    elif selected_model == 'gym':  
+        client = OpenAI()
+        assistant = client.beta.assistants.create(
+        name="gym",
+        instructions="Eres un entrenador personal. Recibe una lista de elementos de gimnasio y sugiere ejercicios que se pueden realizar con esos elementos. Además, si el usuario lo desea, sugiere ejercicios para trabajar grupos musculares específicos.",
+        tools=[{"type": "code_interpreter"}],
+        model="gpt-4o-mini",
+        )
+        thread = client.beta.threads.create()
+
+
+        message = client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=user_input
+        )
+
+        run = client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+            instructions="Eres un entrenador personal. Recibe una lista de elementos de gimnasio y sugiere ejercicios que se pueden realizar con esos elementos. Además, si el usuario lo desea, sugiere ejercicios para trabajar grupos musculares específicos. Tu dominio es solo el gym"
+        )
+
+        if run.status == 'completed': 
+            messages = client.beta.threads.messages.list(thread_id=thread.id)
+
+            # Filtrar los mensajes del asistente
+            mensajes_asistente = [msg for msg in messages.data if msg.role == 'assistant']
+            print(messages)
+            if mensajes_asistente:
+                # Obtener el último mensaje del asistente
+                ultimo_mensaje = mensajes_asistente[0]  # Accede al último mensaje del asistente
+                for block in ultimo_mensaje.content:
+                    print(f"Assistant: {block.text.value}") 
+                    response= block.text.value# Imprime solo el contenido del último mensaje
+            else:
+                print("No se encontró un mensaje del asistente.")
     else:
         return jsonify({'response': 'Modelo no encontrado.'}), 400
-    # Iniciar chat con el modelo seleccionado
-    chat = model.start_chat(history=history)
     
-    # Enviar mensaje al modelo y recibir respuesta
-    response = chat.send_message(
-        user_input,
-        generation_config=genai.types.GenerationConfig(
-            candidate_count=1,
-            stop_sequences=["x"],
-            max_output_tokens=150,
-            temperature=0.7
-        )
-    )
-    
-    respuesta_texto = response.text  # Obtener la respuesta en texto del modelo
+    respuesta_texto = response  # Obtener la respuesta en texto del modelo
+    print(f"Rxs:{respuesta_texto}")
 
     # Mensaje inicial al seleccionar el dominio
     mensaje_inicial = f"Hola, este es el dominio {session.get('selected_domain', 'desconocido')}"
@@ -190,7 +306,7 @@ def chat_post():
         'mensaje_inicial': mensaje_inicial,
         'recipes': recetas
     })
-        @app.route('/synthesize-audio', methods=['POST'])
+@app.route('/synthesize-audio', methods=['POST'])
 def synthesize_audio():
     text = request.json['text']
     audio_path = sintetizar_voz(text, ELEVENLABS_API_KEY)
@@ -248,7 +364,7 @@ def upload_image():
             # Procesa la imagen con el modelo de imágenes
             selected_model = request.form['model']  # Obtener el modelo seleccionado
             print(selected_model)
-                    if selected_model == 'culinary':
+            if selected_model == 'culinary':
                 prompt = "Actúa como un maestro culinario e identifica los ingredientes en la imagen. "
             elif selected_model == 'fashion':
                 prompt = "Actúa como asesor de moda y comenta la vestimenta o prendas presentes en la imagen."

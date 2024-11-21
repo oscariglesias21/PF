@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,7 +31,7 @@
 <body>
     <!-- Mostrar el modelo seleccionado dinámicamente -->
     <div id="selected-model-display" class="selected-model-display">
-        Hola, este es el dominio {{ domain }}
+        {{ domain }}
     </div>
 
     <div id="recommendations-box" class="recommendations-box">
@@ -64,6 +65,7 @@
             <img id="image-preview" alt="Your uploaded image will appear here" style="display: none; width: 300px; margin-top: 10px;">
         </div>
     </div>
+
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
@@ -220,7 +222,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ text: responseText, modelo: selectedModel}),
+                    body: JSON.stringify({ text: responseText }),
                 })
                 .then(audioResponse => {
                     if (audioResponse.ok) return audioResponse.blob();
@@ -323,15 +325,14 @@
                 }, 'image/png');
             };
 
-            // Evento al hacer clic en el botón de cargar imagen
             document.getElementById("upload-button").onclick = function() {
                 const file = imageInput.files[0];
-
+            
                 if (file) {
                     const formData = new FormData();
                     formData.append('image', file);
                     formData.append('model', selectedModel);
-
+            
                     fetch('/upload-image', {
                         method: 'POST',
                         body: formData,
@@ -340,11 +341,36 @@
                     .then(data => {
                         document.getElementById("chat-box").innerHTML += `<div>Modelo: ${data.response}</div>`;
                         speakResponse(data.response);
+            
+                        // Mostrar el mensaje bonito con SweetAlert2
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'The image was uploaded correectly.',
+                            icon: 'success',
+                            confirmButtonText: 'OK',
+                            timer: 3000, // El mensaje se cierra automáticamente en 3 segundos
+                            timerProgressBar: true
+                        });
                     })
-                    .catch(error => console.error('Error:', error));
+                    .catch(error => {
+                        console.error('Error:', error);
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'There was a problem loading the image. Please, try again.',
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'No File',
+                        text: 'Please selecct the image before loading it.',
+                        icon: 'warning',
+                        confirmButtonText: 'OK'
+                    });
                 }
             };
-
+            
             // Vista previa de la imagen cargada
             imageInput.onchange = function() {
                 const file = imageInput.files[0];
